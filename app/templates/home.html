@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% set active = 'home' %}
+{% block title %}Compare prices{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Find where it's cheapest.</h1>
+  <p class="lead">Tell us what you want and where to look. We'll search each website and line up the prices.</p>
+</section>
+
+<form class="card search-form" method="post" action="/search" id="search-form" novalidate>
+  {% if errors %}
+  <div class="alert alert-error" role="alert">
+    <strong>Please fix the following:</strong>
+    <ul>
+      {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <label class="field-label" for="query">Product</label>
+  <input class="input input-lg" type="text" id="query" name="query"
+         placeholder="e.g. Samsung Galaxy S24 Ultra 256GB" value="{{ query }}"
+         maxlength="200" required autofocus autocomplete="off">
+
+  <div class="field-label-row">
+    <span class="field-label" id="websites-label">Websites to search</span>
+    <span class="hint">Up to {{ max_websites }}</span>
+  </div>
+  <ul class="website-list" id="website-list" aria-labelledby="websites-label"
+      data-max="{{ max_websites }}">
+    {% for website in websites %}
+    <li class="website-row">
+      <input class="input" type="url" name="websites" value="{{ website }}"
+             placeholder="https://www.example.com" inputmode="url" autocomplete="off"
+             aria-label="Website URL">
+      <button type="button" class="btn btn-icon remove-website" aria-label="Remove website">✕</button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <template id="website-row-template">
+    <li class="website-row">
+      <input class="input" type="url" name="websites" placeholder="https://www.example.com"
+             inputmode="url" autocomplete="off" aria-label="Website URL">
+      <button type="button" class="btn btn-icon remove-website" aria-label="Remove website">✕</button>
+    </li>
+  </template>
+
+  <div class="website-actions">
+    <button type="button" class="btn btn-secondary" id="add-website">+ Add website</button>
+    <div class="suggestions" aria-label="Quick add">
+      {% for name, url in suggested %}
+      <button type="button" class="chip" data-url="{{ url }}">{{ name }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <p class="form-error" id="client-error" role="alert" hidden></p>
+
+  <button type="submit" class="btn btn-primary btn-lg" id="compare-btn">Compare prices</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='js/home.js') }}" defer></script>
+{% endblock %}
