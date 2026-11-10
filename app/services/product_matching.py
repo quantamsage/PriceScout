@@ -41,6 +41,13 @@ ACCESSORY_WORDS = frozenset({
     "battery", "lens", "dock", "bumper", "wallet", "keyboard", "stylus", "earbuds",
 })
 
+# Nouns that, at the end of a title, mean the listing *is* an accessory.
+ACCESSORY_HEAD_NOUNS = frozenset({
+    "case", "cases", "cover", "covers", "protector", "protectors", "skin", "skins", "charger",
+    "cable", "cables", "adapter", "holder", "strap", "straps", "pouch", "sleeve", "stand", "mount",
+    "film", "decal", "sticker", "bumper", "wallet", "dock",
+})
+
 VARIANT_WORDS = {"pro", "max", "ultra", "plus", "mini", "lite", "fe", "air", "neo", "note", "fold", "flip", "edge", "se"}
 
 BRAND_ALIASES = {
@@ -63,6 +70,9 @@ BRAND_ALIASES = {
 
 _CAPACITY = re.compile(r"(\d+(?:\.\d+)?)\s?(gb|tb)\b")
 _SIZE = re.compile(r"(\d+(?:\.\d+)?)\s?(?:\"|''|”|″|-?\s?inch(?:es)?\b|in\b)")
+# Model codes such as "a15", "s24", "sm-s928u" (letters first, then digits);
+# excludes specs like "50mp" or "5000mah" which start with digits.
+_MODEL_CODE = re.compile(r"[a-z]{1,3}-?\d{2,4}[a-z]{0,2}")
 _TOKEN = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
 
 
@@ -126,6 +136,34 @@ def _token_present(token: str, features: ProductFeatures) -> bool:
     return False
 
 
+def is_accessory_listing(query: ProductFeatures, title: str) -> bool:
+    """True when an accessory word comes *before* the product reference,
+    e.g. "Silicone Case for Galaxy S24" — but not "Galaxy A15 ... Fast
+    Charging", where the word describes a feature of the product itself."""
+    if query.tokens & ACCESSORY_WORDS:
+        return False  # the user is searching for an accessory
+    ordered = [t.strip(".-") for t in _TOKEN.findall(normalize(title))]
+    ordered = [t for t in ordered if t]
+    anchors = query.model_tokens or frozenset(query.significant)
+    anchor_index = next((i for i, tok in enumerate(ordered) if tok in anchors), len(ordered))
+    if any(tok in ACCESSORY_WORDS for tok in ordered[:anchor_index]):
+        return True
+    # "... Silicone Purple Phone Case." — the head noun at the end names
+    # what is being sold.
+    tail = [t for t in ordered if t not in STOPWORDS or t == "phone"][-3:]
+    return any(tok in ACCESSORY_HEAD_NOUNS for tok in tail)
+
+
+def _is_compatibility_list(query: ProductFeatures, title: ProductFeatures) -> bool:
+    """Titles listing many other models ("A07, A17, A06, A08 ... cover") are
+    almost always accessories or bundles, not the product itself."""
+    other_models = {
+        m for m in title.model_tokens
+        if m not in query.model_tokens and _MODEL_CODE.fullmatch(m)
+    }
+    return len(other_models) >= 3
+
+
 def relevance(query: str, title: str) -> float:
     """Score 0..1 of how well `title` matches the user's `query`."""
     q = extract_features(query)
@@ -153,7 +191,9 @@ def relevance(query: str, title: str) -> float:
     score *= 0.5 ** len(q.variants - t.variants)
     score *= 0.55 ** len(t.variants - q.variants)
     # Accessories for the product ("case for Galaxy S24") are not the product.
-    if (t.tokens & ACCESSORY_WORDS) - q.tokens:
+    if is_accessory_listing(q, title):
+        score *= 0.4
+    if _is_compatibility_list(q, t):
         score *= 0.4
     return round(max(0.0, min(1.0, score)), 4)
 

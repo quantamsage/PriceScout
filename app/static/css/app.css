@@ -149,6 +149,7 @@ h2 { font-size: 1.25rem; margin: 0 0 12px; }
   font: inherit; font-weight: 600; cursor: pointer;
   border-radius: var(--radius-sm); border: 1px solid transparent;
   padding: 9px 16px; transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none; display: inline-block; text-align: center;
 }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .btn-primary { background: var(--primary); color: #fff; }

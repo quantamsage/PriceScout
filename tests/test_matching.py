@@ -80,3 +80,40 @@ def test_grouping_is_conservative():
 def test_grouping_unknown_storage_stays_separate():
     groups = group_listings([(1, "Samsung Galaxy S24 Ultra 256GB"), (2, "Samsung Galaxy S24 Ultra")])
     assert groups[1] != groups[2]
+
+
+def test_accessory_detection_is_positional():
+    query = "Samsung Galaxy A15"
+    assert relevance(query, "Samsung Fast Charger 25W USB C for Galaxy A15, A14") < 0.6
+    assert relevance(query, "Luxury PU Leather Case For Samsung Galaxy A15 5G Back Cover") < 0.6
+    # A feature mention after the product is not an accessory listing.
+    assert relevance(
+        query, "Samsung Galaxy A15 5G Cell Phone, 128GB Unlocked, AMOLED Display, Super Fast Charging"
+    ) >= 0.6
+    # Searching for the accessory itself still matches.
+    assert relevance("Galaxy S24 Ultra case", "Silicone Case Cover For Samsung Galaxy S24 Ultra") >= 0.6
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Samsung Galaxy A07, A17, A06, A08, A18, A16, A26, A36, A56, A57, A37, A15, A25, A27, A35, A55 "
+        "Cover Luxury High Protection Premium and ORIGINAL Silicone Purple Phone Case.",
+        "Samsung Galaxy A15 5G Silicone Phone Case",
+        "Samsung Galaxy A15 Tempered Glass Screen Protector",
+    ],
+)
+def test_accessories_named_after_the_product_are_not_matches(title):
+    assert relevance("Samsung Galaxy A15", title) < 0.6
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Refurbished Phone Samsung Galaxy A15 5G 6.5 inch 4GB/6GB/8GB+128GB/256GB clean screen 50mp+13mp 5000mah",
+        "Tracfone Samsung Galaxy A15 5G, 128GB, 50MP Camera (Locked to Carrier)",
+        "Samsung Galaxy A15 5G (64GB, 2024) 6.5\" 90Hz AMOLED, 50MP Camera, Fully Unlocked",
+    ],
+)
+def test_real_phones_still_match(title):
+    assert relevance("Samsung Galaxy A15", title) >= 0.6

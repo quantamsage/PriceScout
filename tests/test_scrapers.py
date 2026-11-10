@@ -275,3 +275,24 @@ async def test_unsupported_when_no_search_urls(make_ctx):
 
     with pytest.raises(UnsupportedWebsiteError):
         await NoUrls("https://x.example.com/").search("q", make_ctx())
+
+
+async def test_amazon_current_layout_combines_brand_and_title(router, make_ctx):
+    router.add("https://www.amazon.com/s?k=galaxy+a15", load_fixture("amazon_search_v2.html"))
+    products = await AmazonAdapter("https://www.amazon.com/").search("galaxy a15", make_ctx())
+    assert products[0].name.startswith("Samsung Galaxy A15 5G (128GB, 2024)")
+    assert products[0].price == Decimal("19355.69")
+    assert products[0].currency == "KES"  # currency shown on the page wins over the TLD default
+    assert products[0].url.endswith("/dp/B0FKNRD1XD/ref=sr_1_1")
+
+
+def test_heuristics_do_not_override_site_selectors():
+    # Extra price-like text outside product cards must not displace selector results.
+    html = load_fixture("amazon_search.html").replace(
+        "</body>", "<div><a href='/offers/1'>$12.00 (2+ used &amp; new offers)</a></div>"
+                   "<div><a href='/offers/2'>$13.00 (2+ used &amp; new offers)</a></div>"
+                   "<div><a href='/offers/3'>$14.00 (3 used &amp; new offers)</a></div>"
+                   "<div><a href='/offers/4'>$15.00 (4 used &amp; new offers)</a></div></body>"
+    )
+    products = AmazonAdapter("https://www.amazon.com/").extract(parse_html(html), "https://www.amazon.com/s")
+    assert {p.extraction_method for p in products} == {"selectors"}

@@ -302,6 +302,7 @@ class SelectorConfig:
     image: str = "img"
     seller: Optional[str] = None
     availability: Optional[str] = None
+    brand: Optional[str] = None  # prepended to the name when the title omits it
     skip_if_name_matches: Optional[str] = None
 
 
@@ -329,9 +330,15 @@ def extract_with_selectors(
         link_tag = _first(item, config.link)
         if name_tag is None or link_tag is None:
             continue
-        name = name_tag.get("title") or name_tag.get_text(" ", strip=True)
+        name = (
+            name_tag.get("aria-label") or name_tag.get("title") or name_tag.get_text(" ", strip=True)
+        )
         if skip and name and skip.search(name):
             continue
+        brand_tag = _first(item, config.brand)
+        brand = brand_tag.get_text(" ", strip=True) if brand_tag is not None else ""
+        if brand and name and brand_tag is not name_tag and brand.lower() not in name.lower():
+            name = f"{brand} {name}"
         price_tag = _first(item, config.price)
         price_text = clean_text(price_tag.get_text(" ", strip=True), 100) if price_tag else None
         parsed = parse_price(price_text, default_currency=default_currency)

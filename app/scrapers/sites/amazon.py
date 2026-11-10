@@ -25,8 +25,10 @@ class AmazonAdapter(HtmlAdapter):
     host_pattern = re.compile(r"(^|\.)amazon\.(" + "|".join(re.escape(t) for t in _TLD_CURRENCY) + r")$")
     selectors = SelectorConfig(
         item='div[data-component-type="s-search-result"]',
-        name="h2 span, h2 a span, h2",
-        link='h2 a, a.a-link-normal[href*="/dp/"], a[href*="/dp/"]',
+        # Current layout: brand in `h2.a-size-mini`, full title in `h2[aria-label]`.
+        name="h2[aria-label], h2.a-text-normal, h2 a span, h2 span, h2",
+        brand="h2.a-size-mini",
+        link='a.a-link-normal[href*="/dp/"], h2 a, a[href*="/dp/"]',
         price="span.a-price:not(.a-text-price) span.a-offscreen, span.a-price span.a-offscreen",
         image="img.s-image",
         availability="span.a-color-price",

@@ -99,17 +99,28 @@ class HtmlAdapter(WebsiteAdapter):
 
     def extract(self, soup: BeautifulSoup, page_url: str) -> list[Product]:
         currency = self.default_currency()
-        strategies = [lambda: extract_json_ld(soup, page_url, self.source),
-                      lambda: extract_microdata(soup, page_url, self.source)]
+        # Reliable strategies: structured data and site-specific selectors.
+        trusted = [lambda: extract_json_ld(soup, page_url, self.source),
+                   lambda: extract_microdata(soup, page_url, self.source)]
         if self.selectors is not None:
-            strategies.append(
+            trusted.append(
                 lambda: extract_with_selectors(soup, page_url, self.source, self.selectors, currency)
             )
+        # Heuristics, used only when nothing reliable was found.
+        fallback = []
         if self.use_generic_fallback:
-            strategies.append(lambda: extract_generic_cards(soup, page_url, self.source, currency))
-        strategies.append(lambda: extract_open_graph(soup, page_url, self.source))
+            fallback.append(lambda: extract_generic_cards(soup, page_url, self.source, currency))
+        fallback.append(lambda: extract_open_graph(soup, page_url, self.source))
 
-        results: list[list[Product]] = []
+        best = self._best_of(trusted, page_url, currency)
+        return best or self._best_of(fallback, page_url, currency)
+
+    def _best_of(self, strategies: list, page_url: str, currency: Optional[str]) -> list[Product]:
+        """Run strategies and keep the one that found the most priced
+        products (structured data may list only a subset of the page); ties
+        go to the higher-priority strategy (earlier in the list)."""
+        best: list[Product] = []
+        best_key = (0, 0)
         for strategy in strategies:
             try:
                 products = strategy()
@@ -118,13 +129,10 @@ class HtmlAdapter(WebsiteAdapter):
                 continue
             if currency:
                 products = [p if p.currency else p.model_copy(update={"currency": currency}) for p in products]
-            priced = sum(1 for p in products if p.price is not None)
-            if priced >= 2:
-                return products
-            results.append(products)
-        # Nothing clearly good: prefer the result with the most priced items.
-        results.sort(key=lambda ps: (sum(1 for p in ps if p.price is not None), len(ps)), reverse=True)
-        return results[0] if results else []
+            key = (sum(1 for p in products if p.price is not None), len(products))
+            if key > best_key:
+                best, best_key = products, key
+        return best
 
     async def search(self, query: str, ctx: SearchContext) -> list[Product]:
         limit = ctx.settings.max_results_per_site
