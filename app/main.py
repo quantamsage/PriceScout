@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -16,7 +17,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import Settings, get_settings
 from app.database import create_engine, create_session_factory, init_db
 from app.logging_config import configure_logging
-from app.routers import home
+from app.repositories.search_repository import SearchRepository
+from app.routers import history, home, search
+from app.scrapers.browser import BrowserPool
+from app.services.search_manager import SearchManager
+from app.services.url_safety import Resolver, system_resolver
 from app.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -35,7 +40,15 @@ SECURITY_HEADERS = {
 }
 
 
-def create_app(settings: Optional[Settings] = None) -> FastAPI:
+def create_app(
+    settings: Optional[Settings] = None,
+    *,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+    resolver: Resolver = system_resolver,
+    browser: Optional[BrowserPool] = None,
+) -> FastAPI:
+    """Build the app. `transport`, `resolver` and `browser` are injection
+    points for tests (mocked HTTP, fake DNS, fake browser)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
@@ -43,12 +56,20 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         engine = create_engine(settings.database_url)
         await init_db(engine)
+        repository = SearchRepository(create_session_factory(engine))
+        interrupted = await repository.fail_unfinished_searches()
+        if interrupted:
+            logger.warning("Marked %d interrupted searches as failed", interrupted)
+        manager = SearchManager(
+            settings, repository, transport=transport, resolver=resolver, browser=browser
+        )
         app.state.engine = engine
-        app.state.session_factory = create_session_factory(engine)
+        app.state.search_manager = manager
         logger.info("%s started", settings.app_name)
         try:
             yield
         finally:
+            await manager.shutdown()
             await engine.dispose()
 
     app = FastAPI(title=settings.app_name, lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -98,6 +119,8 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(home.router)
+    app.include_router(search.router)
+    app.include_router(history.router)
     return app
 
 

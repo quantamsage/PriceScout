@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active = 'history' %}
+{% block title %}History{% endblock %}
+{% block content %}
+<div class="results-header">
+  <div>
+    <h1>Search history</h1>
+    <p class="muted flush">{{ total }} saved comparison{{ '' if total == 1 else 's' }}. Each keeps the prices found at the time.</p>
+  </div>
+</div>
+
+{% if searches %}
+<ul class="history-list">
+  {% for search in searches %}
+  <li class="card history-item">
+    <div>
+      <a class="query" href="/search/{{ search.id }}">{{ search.query }}</a>
+      <div class="history-meta">
+        <span>{{ search.created_at | datetime }}</span>
+        <span>{{ search.total_websites }} website{{ '' if search.total_websites == 1 else 's' }}:
+          {% for website in search.websites %}{{ website.domain }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+        <span>{{ search.matching_products }} matching product{{ '' if search.matching_products == 1 else 's' }}</span>
+        {% if search.failed_websites %}<span>{{ search.failed_websites }} failed</span>{% endif %}
+      </div>
+    </div>
+    <span class="badge badge-{{ search.status }}">{{ search.status }}</span>
+  </li>
+  {% endfor %}
+</ul>
+<nav class="pagination" aria-label="Pagination">
+  {% if has_prev %}<a class="btn btn-secondary btn-small" href="/history?page={{ page - 1 }}">← Newer</a>{% else %}<span></span>{% endif %}
+  {% if has_next %}<a class="btn btn-secondary btn-small" href="/history?page={{ page + 1 }}">Older →</a>{% endif %}
+</nav>
+{% else %}
+<div class="card empty-state">
+  <p>No searches yet.</p>
+  <p><a class="btn btn-primary" href="/">Compare prices</a></p>
+</div>
+{% endif %}
+{% endblock %}

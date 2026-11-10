@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ search.query }}{% endblock %}
+{% block content %}
+<div class="results-header">
+  <div>
+    <p class="muted flush">Price comparison · {{ search.created_at | datetime }}</p>
+    <h1>{{ search.query }}</h1>
+  </div>
+  <div class="toolbar-group">
+    <span class="badge badge-{{ search.status }}" id="search-status">{{ search.status }}</span>
+    <a class="btn btn-secondary btn-small" href="/">New search</a>
+  </div>
+</div>
+
+<section aria-label="Search summary" class="summary-grid">
+  <div class="stat"><div class="stat-value" id="stat-total">{{ search.total_websites }}</div><div class="stat-label">Websites submitted</div></div>
+  <div class="stat"><div class="stat-value" id="stat-success">–</div><div class="stat-label">Successful searches</div></div>
+  <div class="stat"><div class="stat-value" id="stat-failed">–</div><div class="stat-label">Failed searches</div></div>
+  <div class="stat"><div class="stat-value" id="stat-matches">–</div><div class="stat-label">Matching products</div></div>
+</section>
+
+<section aria-label="Search progress">
+  <h2>Progress</h2>
+  <ul class="progress-list" id="progress-list">
+    {% for website in websites %}
+    <li class="progress-item status-{{ website.status }}" data-website-id="{{ website.id }}">
+      <span class="status-dot" aria-hidden="true"></span>
+      <div>
+        <div class="site" title="{{ website.url }}">{{ website.display_name }}</div>
+        <div class="detail">{% if website.status == 'pending' %}Waiting…{% else %}{{ website.message or website.status }}{% endif %}</div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="section" aria-label="Comparison results">
+  <h2>Results</h2>
+  <div id="best-deal" hidden></div>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <label>Website
+        <select class="input" id="filter-website">
+          <option value="">All websites</option>
+          {% for website in websites %}
+          <option value="{{ website.id }}">{{ website.display_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Sort
+        <select class="input" id="sort-by">
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+          <option value="relevance">Best match</option>
+          <option value="website">Website</option>
+        </select>
+      </label>
+    </div>
+    <label><input type="checkbox" id="show-all"> Show non-matching listings</label>
+  </div>
+
+  <div class="table-wrap">
+    <table class="results" id="results-table">
+      <thead>
+        <tr>
+          <th scope="col"><span class="visually-hidden">Image</span></th>
+          <th scope="col">Product</th>
+          <th scope="col">Website</th>
+          <th scope="col"><button type="button" class="sort" id="price-header" aria-label="Sort by price">Price ↕</button></th>
+          <th scope="col">Currency</th>
+          <th scope="col">Availability</th>
+          <th scope="col">Seller</th>
+          <th scope="col">Last checked</th>
+          <th scope="col">Link</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+  <p class="empty-state" id="empty-state">Waiting for results…</p>
+  <p class="notice" id="currency-notice" hidden></p>
+  <p class="notice">
+    Prices marked <span class="unavailable">unavailable</span> could not be read from the website — they are not zero.
+    Listings are shown as “not a match” when their title differs from your search (e.g. other storage size or model).
+  </p>
+</section>
+
+<noscript><p class="alert alert-info">Enable JavaScript to see live results, or use the <a href="/api/searches/{{ search.id }}">JSON view</a>.</p></noscript>
+<div id="search-config" data-search-id="{{ search.id }}" data-events-url="/search/{{ search.id }}/events" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='js/results.js') }}" defer></script>
+{% endblock %}
